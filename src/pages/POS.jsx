@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Building } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Building, Printer, X, CheckCircle } from 'lucide-react';
 
 export default function POS() {
   const [produits, setProduits] = useState([]);
@@ -8,6 +8,7 @@ export default function POS() {
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('Espèces');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [receipt, setReceipt] = useState(null); // Receipt modal state
 
   useEffect(() => {
     fetchProduits();
@@ -24,7 +25,7 @@ export default function POS() {
     setCart(prev => {
       const existing = prev.find(item => item.id === produit.id);
       if (existing) {
-        if (existing.quantite >= produit.stock_actuel) return prev; // Cannot exceed stock
+        if (existing.quantite >= produit.stock_actuel) return prev;
         return prev.map(item => item.id === produit.id ? { ...item, quantite: item.quantite + 1 } : item);
       }
       return [...prev, { ...produit, quantite: 1 }];
@@ -51,7 +52,6 @@ export default function POS() {
     setIsProcessing(true);
 
     try {
-      // 1. Insert Vente
       const { data: venteData, error: venteError } = await supabase
         .from('ventes')
         .insert([{ total, methode_paiement: paymentMethod }])
@@ -60,7 +60,6 @@ export default function POS() {
 
       if (venteError) throw venteError;
 
-      // 2. Insert Lignes
       const lignes = cart.map(item => ({
         vente_id: venteData.id,
         produit_id: item.id,
@@ -69,13 +68,19 @@ export default function POS() {
       }));
 
       const { error: ligneError } = await supabase.from('ligne_ventes').insert(lignes);
-      
       if (ligneError) throw ligneError;
 
-      // Note: Trigger in DB automatically decrements stock_actuel on produits.
-      alert('Vente enregistrée avec succès !');
+      // Show receipt modal instead of alert
+      setReceipt({
+        id: venteData.id,
+        date: new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        items: [...cart],
+        total,
+        methode: paymentMethod,
+      });
+
       setCart([]);
-      fetchProduits(); // Refresh stock
+      fetchProduits();
     } catch (error) {
       console.error("Erreur Checkout:", error);
       alert("Une erreur est survenue lors de l'enregistrement de la vente.");
@@ -84,10 +89,14 @@ export default function POS() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="h-full flex flex-col md:flex-row gap-6">
       {/* Left Pane: Products */}
-      <div className="flex-1 flex flex-col space-y-4">
+      <div className="flex-1 flex flex-col space-y-4 print:hidden">
         <h1 className="text-3xl font-bold text-gray-900">Point de Vente</h1>
         
         <div className="relative">
@@ -136,7 +145,7 @@ export default function POS() {
       </div>
 
       {/* Right Pane: Cart */}
-      <div className="w-full md:w-96 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[calc(100vh-6rem)] relative">
+      <div className="w-full md:w-96 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[calc(100vh-6rem)] relative print:hidden">
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-800 flex items-center">
             <ShoppingCart className="w-6 h-6 mr-2 text-primary" />
@@ -213,6 +222,73 @@ export default function POS() {
           </button>
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      {receipt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 print:bg-white print:p-0">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden print:shadow-none print:rounded-none print:max-w-full">
+            {/* Receipt Header */}
+            <div className="bg-success text-white p-6 text-center print:bg-white print:text-black print:border-b-2 print:border-black">
+              <CheckCircle className="w-12 h-12 mx-auto mb-3 print:hidden" />
+              <h2 className="text-2xl font-bold">Vente enregistrée !</h2>
+              <p className="text-green-100 text-sm mt-1 print:text-gray-600">Reçu de transaction</p>
+            </div>
+            
+            {/* Receipt Body */}
+            <div className="p-6 space-y-4">
+              <div className="text-center border-b border-dashed border-gray-300 pb-4">
+                <h3 className="text-lg font-bold text-gray-900">ParaGest</h3>
+                <p className="text-xs text-gray-500">Magasin Paramédical</p>
+                <p className="text-xs text-gray-400 mt-1">{receipt.date}</p>
+                <p className="text-xs text-gray-400 font-mono">Réf: {receipt.id.split('-')[0]}</p>
+              </div>
+
+              {/* Items */}
+              <div className="space-y-2">
+                {receipt.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm">
+                    <div className="flex-1">
+                      <span className="text-gray-800">{item.nom}</span>
+                      <span className="text-gray-400 ml-2">x{item.quantite}</span>
+                    </div>
+                    <span className="font-medium text-gray-900">{(item.prix_vente * item.quantite).toFixed(2)} DZD</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total */}
+              <div className="border-t border-dashed border-gray-300 pt-4 flex justify-between items-center">
+                <span className="text-lg font-bold text-gray-800">Total</span>
+                <span className="text-2xl font-black text-primary">{receipt.total.toFixed(2)} DZD</span>
+              </div>
+
+              <div className="text-center text-xs text-gray-500 border-t border-dashed border-gray-300 pt-3">
+                Payé par: <span className="font-medium">{receipt.methode}</span>
+              </div>
+
+              <p className="text-center text-xs text-gray-400 mt-2">Merci pour votre achat !</p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-6 flex space-x-3 print:hidden">
+              <button
+                onClick={handlePrint}
+                className="flex-1 py-3 bg-primary hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center transition-colors"
+              >
+                <Printer className="w-5 h-5 mr-2" />
+                Imprimer
+              </button>
+              <button
+                onClick={() => setReceipt(null)}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 mr-2" />
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
