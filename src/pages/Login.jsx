@@ -181,9 +181,11 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          © 2026 ParaGest — Tous droits réservés
-        </p>
+        <div className="text-center mt-6 space-y-0.5">
+          <p className="text-xs font-medium text-gray-500">Ramy Kamil Mecheri</p>
+          <p className="text-[10px] text-gray-400">ramy.mecherim2@gmail.com · +213 664 975 983</p>
+          <p className="text-[10px] text-gray-400">© 2026 ParaGest — Tous droits réservés</p>
+        </div>
       </div>
     </div>
   );
