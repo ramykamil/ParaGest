@@ -80,6 +80,13 @@ export default function Layout({ session }) {
             </button>
           </div>
         </div>
+
+        {/* Owner Footer */}
+        <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 text-center">
+          <p className="text-xs font-medium text-gray-500">Ramy Kamil Mecheri</p>
+          <p className="text-[10px] text-gray-400">ramy.mecherim2@gmail.com</p>
+          <p className="text-[10px] text-gray-400">+213 664 975 983</p>
+        </div>
       </aside>
 
       {/* Main Content Area */}
